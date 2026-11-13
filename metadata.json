@@ -1,0 +1,6 @@
+{
+  "name": "U.S. National Parks Explorer (Go & htmx)",
+  "description": "Golang web application that loads U.S. National Park data from Wikipedia into memory with htmx UI for GCP Cloud Run.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
