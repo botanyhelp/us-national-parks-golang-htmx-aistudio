@@ -1,5 +1,7 @@
 # U.S. National Parks Explorer (Go & htmx)
 
+STILL UNDER CONSTRUCTION
+
 A lightweight, high-performance web application that fetches and parses U.S. National Park records directly from Wikipedia into memory. It features a responsive master-detail interface powered by **htmx** (no client-side JS framework required) and is packaged in a minimal multi-stage Alpine Docker container ready for **GCP Cloud Run**.
 
 ## Features
