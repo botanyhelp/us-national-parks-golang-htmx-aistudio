@@ -58,7 +58,6 @@ func (s *ParkStore) LoadFromWikipedia(url string) error {
 		return fmt.Errorf("creating request: %w", err)
 	}
 
-	// Wikipedia requires a custom User-Agent policy header
 	req.Header.Set("User-Agent", "USNationalParksViewer/1.0 (Golang HTMX Educational Demo; contact@example.com)")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
@@ -136,7 +135,7 @@ func (s *ParkStore) Status() (int, time.Time, error) {
 	return len(s.parks), s.lastLoaded, s.loadErr
 }
 
-// ----------------- HTML Parser (Standard Library Only) -----------------
+// ----------------- HTML Parser -----------------
 
 var (
 	tagRegex = regexp.MustCompile(`(?s)<[^>]*>`)
@@ -285,7 +284,7 @@ func parseWikipediaHTML(pageHTML string) ([]Park, error) {
 	return parks, nil
 }
 
-// ----------------- Seed Data (Fallback) -----------------
+// ----------------- Seed Data -----------------
 func getSeedParks() []Park {
 	return []Park{
 		{
@@ -330,7 +329,7 @@ func getSeedParks() []Park {
 	}
 }
 
-// ----------------- HTML Templates -----------------
+// ----------------- Templates -----------------
 
 const pageTemplate = `<!DOCTYPE html>
 <html lang="en">
@@ -409,11 +408,20 @@ const pageTemplate = `<!DOCTYPE html>
       flex: 1;
       height: calc(100vh - 60px);
       overflow: hidden;
+      position: relative;
     }
+    .mobile-back-btn { display: none; }
     @media (max-width: 840px) {
       .container { grid-template-columns: 1fr; }
-      #detail-panel { display: none; }
-      #detail-panel.active { display: block; position: fixed; inset: 0; z-index: 50; }
+      #detail-panel {
+        display: none;
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        background: var(--bg);
+      }
+      #detail-panel.active { display: block; }
+      .mobile-back-btn { display: inline-flex; margin-bottom: 1rem; }
     }
     .sidebar {
       background: var(--surface);
@@ -626,7 +634,7 @@ const appContentTemplate = `{{define "app-content"}}
     </ul>
   </aside>
 
-  <main class="main-content" id="detail-panel">
+  <main class="main-content {{if .SelectedPark}}active{{end}}" id="detail-panel">
     {{if .SelectedPark}}
       {{template "park-detail" .SelectedPark}}
     {{else}}
@@ -644,9 +652,12 @@ const appContentTemplate = `{{define "app-content"}}
 const parkItemsTemplate = `{{define "park-items"}}
   {{range .Parks}}
     <li class="park-item {{if eq .ID $.SelectedID}}selected{{end}}"
-        hx-get="/parks/detail?id={{.ID}}"
-        hx-target="#detail-panel"
-        hx-swap="innerHTML">
+        hx-get="/?id={{.ID}}"
+        hx-target="#app-view"
+        hx-select="#app-view"
+        hx-push-url="true"
+        hx-swap="innerHTML"
+        hx-on::after-request="document.getElementById('detail-panel').classList.add('active')">
       {{if .ImageURL}}
         <img class="park-thumb" src="{{.ImageURL}}" alt="{{.Name}}" loading="lazy">
       {{else}}
@@ -666,6 +677,9 @@ const parkItemsTemplate = `{{define "park-items"}}
 
 const parkDetailTemplate = `{{define "park-detail"}}
   <div class="card">
+    <button class="btn btn-secondary mobile-back-btn" onclick="document.getElementById('detail-panel').classList.remove('active')">
+      ← Back to Parks
+    </button>
     {{if .ImageURL}}
       <div class="hero-img-wrap">
         <img class="hero-img" src="{{.ImageURL}}" alt="{{.Name}}">
@@ -781,8 +795,14 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.tmpl.Execute(w, data); err != nil {
-		log.Printf("template execute error: %v", err)
+	if r.Header.Get("HX-Request") != "" {
+		if err := s.tmpl.ExecuteTemplate(w, "app-content", data); err != nil {
+			log.Printf("template error: %v", err)
+		}
+	} else {
+		if err := s.tmpl.Execute(w, data); err != nil {
+			log.Printf("template execute error: %v", err)
+		}
 	}
 }
 

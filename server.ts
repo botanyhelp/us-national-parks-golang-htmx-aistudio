@@ -104,7 +104,6 @@ class ParkStore {
   }
 
   private parseHTML(html: string): Park[] {
-    // Simple robust regex parsing for wikitable rows
     const tableMatch = html.match(/<table[^>]*class="[^"]*wikitable[^"]*"[^>]*>([\s\S]*?)<\/table>/i);
     if (!tableMatch) return this.parks;
 
@@ -220,7 +219,6 @@ const PORT = process.env.PORT || 3000;
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Render partials / full page
 function renderParkItems(parks: Park[], selectedID: string): string {
   if (parks.length === 0) {
     return `<li style="padding: 1.5rem; text-align: center; color: var(--text-muted); font-size: 0.9rem;">No parks matched your query.</li>`;
@@ -229,9 +227,12 @@ function renderParkItems(parks: Park[], selectedID: string): string {
     .map(
       p => `
     <li class="park-item ${p.id === selectedID ? 'selected' : ''}"
-        hx-get="/parks/detail?id=${p.id}"
-        hx-target="#detail-panel"
-        hx-swap="innerHTML">
+        hx-get="/?id=${p.id}"
+        hx-target="#app-view"
+        hx-select="#app-view"
+        hx-push-url="true"
+        hx-swap="innerHTML"
+        hx-on::after-request="document.getElementById('detail-panel').classList.add('active')">
       ${
         p.image_url
           ? `<img class="park-thumb" src="${p.image_url}" alt="${p.name}" loading="lazy">`
@@ -250,6 +251,9 @@ function renderParkItems(parks: Park[], selectedID: string): string {
 function renderParkDetail(p: Park): string {
   return `
   <div class="card">
+    <button class="btn btn-secondary mobile-back-btn" onclick="document.getElementById('detail-panel').classList.remove('active')">
+      ← Back to Parks
+    </button>
     ${
       p.image_url
         ? `<div class="hero-img-wrap"><img class="hero-img" src="${p.image_url}" alt="${p.name}"></div>`
@@ -320,7 +324,7 @@ function renderAppContent(parks: Park[], selectedPark: Park | undefined, selecte
     </ul>
   </aside>
 
-  <main class="main-content" id="detail-panel">
+  <main class="main-content ${selectedPark ? 'active' : ''}" id="detail-panel">
     ${selectedPark ? renderParkDetail(selectedPark) : `
       <div class="empty-state">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -412,11 +416,20 @@ function renderPage(parks: Park[], selectedPark: Park | undefined, selectedID: s
       flex: 1;
       height: calc(100vh - 60px);
       overflow: hidden;
+      position: relative;
     }
+    .mobile-back-btn { display: none; }
     @media (max-width: 840px) {
       .container { grid-template-columns: 1fr; }
-      #detail-panel { display: none; }
-      #detail-panel.active { display: block; position: fixed; inset: 0; z-index: 50; }
+      #detail-panel {
+        display: none;
+        position: absolute;
+        inset: 0;
+        z-index: 50;
+        background: var(--bg);
+      }
+      #detail-panel.active { display: block; }
+      .mobile-back-btn { display: inline-flex; margin-bottom: 1rem; }
     }
     .sidebar {
       background: var(--surface);
@@ -618,8 +631,14 @@ app.get('/', (req, res) => {
   const parks = store.getAll();
   const selectedID = (req.query.id as string) || (parks.length > 0 ? parks[0].id : '');
   const selectedPark = store.getByID(selectedID) || parks[0];
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(renderPage(parks, selectedPark, selectedID));
+  
+  if (req.headers['hx-request']) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(renderAppContent(parks, selectedPark, selectedID));
+  } else {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(renderPage(parks, selectedPark, selectedID));
+  }
 });
 
 app.get('/parks/search', (req, res) => {
